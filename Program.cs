@@ -142,7 +142,7 @@ public class LaguerreFunc
         return integralSum;
     }
 
-public double InverseLaguerre(double[] h)
+    public double InverseLaguerre(double[] h)
     {
         int temp = _n;
         double sum = 0;
@@ -156,7 +156,37 @@ public double InverseLaguerre(double[] h)
         _n = temp;
         return sum;
     }
+    public double FindT(int N = 20, double epsilon = 1e-3)
+    {
+        double T = 0.0;
+        bool found = false;
+
+        while (!found)
+        {
+            found = true;
+
+            for (int n = 0; n <= N; n++)
+            {
+                this.N = n;
+                this.T = (float)T;
+
+                if (Math.Abs(CalcFunc()) >= epsilon)
+                {
+                    found = false;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                T += 0.1;
+            }
+        }
+
+        return T;
+    }
 }
+
 
 class ProgramLaguerre
 {
@@ -169,5 +199,18 @@ class ProgramLaguerre
 
         Console.WriteLine("Left rect: " + lag.LeftRect(1, 5));
         Console.WriteLine("Mid rect: " + lag.MidRect(1, 5));
+
+        double T = lag.FindT();
+        Console.WriteLine($"T = {T}");
+
+
+        var (tValues, lValues) = lag.TabulateLaguerre(T);
+        Console.WriteLine("t\t| L(n, t)");
+        Console.WriteLine("----------------");
+
+        for (int i = 0; i < tValues.Length; i++)
+        {
+            Console.WriteLine($"{tValues[i]:F3}\t| {lValues[i]:F6}");
+        }
     }
 }
