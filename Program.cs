@@ -110,13 +110,44 @@ public class LaguerreFunc
         return (tValues, lValues);
     }
 
+    public double LeftRect(double alpha, double T, double epsilon = 1e-3)
+    {
+        int numPoints = (int)Math.Ceiling(T / epsilon);
+        double dt = T / numPoints;
+        double integralSum = 0;
 
-    public double InverseLaguerre(double[] h)
+        for (int i = 0; i < numPoints; i++)
+        {
+            double t = i * dt;
+            this.T = (float)t;
+            integralSum += CalcFunc() * Math.Exp(-alpha * t) * dt;
+        }
+
+        return integralSum;
+    }
+
+    public double MidRect(double alpha, double T, double epsilon = 1e-3)
+    {
+        int numPoints = (int)Math.Ceiling(T / epsilon);
+        double dt = T / numPoints;
+        double integralSum = 0;
+
+        for (int i = 0; i < numPoints; i++)
+        {
+            double t = (i + 0.5) * dt;
+            this.T = (float)t;
+            integralSum += CalcFunc() * Math.Exp(-alpha * t) * dt;
+        }
+
+        return integralSum;
+    }
+
+public double InverseLaguerre(double[] h)
     {
         int temp = _n;
         double sum = 0;
 
-        for (int i = 0; i < _n; ++i)
+        for (int i = 0; i < h.Length; ++i)
         {
             _n = i;
             sum += h[i] * CalcFunc();
@@ -133,7 +164,10 @@ class ProgramLaguerre
     {
         double[] h = { 1, 2, 3, 4, 5 };
         var lag = new LaguerreFunc(0, 1);
-        Console.WriteLine(lag.CalcFunc());
-        Console.WriteLine(lag.InverseLaguerre(h));
+        Console.WriteLine("Laguerre value: " + lag.CalcFunc());
+        Console.WriteLine("Inverse: " + lag.InverseLaguerre(h));
+
+        Console.WriteLine("Left rect: " + lag.LeftRect(1, 5));
+        Console.WriteLine("Mid rect: " + lag.MidRect(1, 5));
     }
 }
