@@ -1,18 +1,19 @@
 ﻿using System;
+using System.IO;
 
 public class LaguerreFunc
 {
     private int _n;
-    private float _t;
-    private float _sigma;
-    private float _beta;
+    private double _t;
+    private double _sigma;
+    private double _beta;
 
     public LaguerreFunc(int n, double t, double sigma = 4, double beta = 2)
     {
         N = n;
-        T = (float)t;
-        Sigma = (float)sigma;
-        Beta = (float)beta;
+        T = t;
+        Sigma = sigma;
+        Beta = beta;
     }
 
     public int N
@@ -28,7 +29,7 @@ public class LaguerreFunc
         }
     }
 
-    public float T
+    public double T
     {
         get { return _t; }
         set
@@ -41,7 +42,7 @@ public class LaguerreFunc
         }
     }
 
-    public float Sigma
+    public double Sigma
     {
         get { return _sigma; }
         set
@@ -54,7 +55,7 @@ public class LaguerreFunc
         }
     }
 
-    public float Beta
+    public double Beta
     {
         get { return _beta; }
         set
@@ -69,43 +70,43 @@ public class LaguerreFunc
 
     public double CalcFunc()
     {
-        double l0 = Math.Sqrt(Sigma) * Math.Exp(-Beta / 2 * T);
-        double l1 = Math.Sqrt(Sigma) * (1 - Sigma * T) * Math.Exp(-Beta / 2 * T);
+        double sigma = Sigma;
+        double t = T;
+        double beta = Beta;
 
         if (_n == 0)
-        {
-            return l0;
-        }
-        else if (_n == 1)
-        {
-            return l1;
-        }
+            return Math.Sqrt(sigma) * Math.Exp(-beta * t / 2);
 
-        double ln2 = l0;
-        double ln1 = l1;
-        double ln = 0;
+        if (_n == 1)
+            return Math.Sqrt(sigma) * (1 - sigma * t) * Math.Exp(-beta * t / 2);
 
-        for (int i = 2; i <= _n; ++i)
+        double L0 = Math.Sqrt(sigma) * Math.Exp(-beta * t / 2);
+        double L1 = Math.Sqrt(sigma) * (1 - sigma * t) * Math.Exp(-beta * t / 2);
+        double Ln = 0;
+
+        for (int n = 2; n <= _n; n++)
         {
-            ln = ((2 * i - 1 - Sigma * T) / i) * ln1 - ((i - 1) / i) * ln2;
-            ln2 = ln1;
-            ln1 = ln;
+            Ln = ((2 * n - 1 - sigma * t) * L1 - (n - 1) * L0) / n;
+            L0 = L1;
+            L1 = Ln;
         }
 
-        return ln;
+        return Ln;
     }
 
     public (double[], double[]) TabulateLaguerre(double T, int numPoints = 100)
     {
         double[] tValues = new double[numPoints];
         double[] lValues = new double[numPoints];
+        var originT = this.T;
 
         for (int i = 0; i < numPoints; i++)
         {
             tValues[i] = i * (T / (numPoints - 1));
-            this.T = (float)tValues[i];
+            this.T = tValues[i];
             lValues[i] = CalcFunc();
         }
+        this.T = originT;
 
         return (tValues, lValues);
     }
@@ -115,13 +116,15 @@ public class LaguerreFunc
         int numPoints = (int)Math.Ceiling(T / epsilon);
         double dt = T / numPoints;
         double integralSum = 0;
+        var originT = this.T;
 
         for (int i = 0; i < numPoints; i++)
         {
             double t = i * dt;
-            this.T = (float)t;
+            this.T = t;
             integralSum += CalcFunc() * Math.Exp(-alpha * t) * dt;
         }
+        this.T = originT;
 
         return integralSum;
     }
@@ -131,13 +134,15 @@ public class LaguerreFunc
         int numPoints = (int)Math.Ceiling(T / epsilon);
         double dt = T / numPoints;
         double integralSum = 0;
+        var originT = this.T;
 
         for (int i = 0; i < numPoints; i++)
         {
             double t = (i + 0.5) * dt;
-            this.T = (float)t;
+            this.T = t;
             integralSum += CalcFunc() * Math.Exp(-alpha * t) * dt;
         }
+        this.T = originT;
 
         return integralSum;
     }
@@ -156,10 +161,13 @@ public class LaguerreFunc
         _n = temp;
         return sum;
     }
+
     public double FindT(int N = 20, double epsilon = 1e-3)
     {
         double T = 0.0;
         bool found = false;
+        var originN = this.N;
+        var originT = this.T;
 
         while (!found)
         {
@@ -168,7 +176,7 @@ public class LaguerreFunc
             for (int n = 0; n <= N; n++)
             {
                 this.N = n;
-                this.T = (float)T;
+                this.T = T;
 
                 if (Math.Abs(CalcFunc()) >= epsilon)
                 {
@@ -183,17 +191,51 @@ public class LaguerreFunc
             }
         }
 
+        this.N = originN;
+        this.T = originT;
+
         return T;
     }
-}
 
+    public void WriteFile(double[] h)
+    {
+        try
+        {
+            string projectDirectory = Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.FullName;
+            string filePath = Path.Combine(projectDirectory, "Results.txt");
+
+            using (FileStream stream = new FileStream(filePath, FileMode.OpenOrCreate))
+            using (StreamWriter writer = new StreamWriter(stream, System.Text.Encoding.UTF8))
+            {
+                writer.WriteLine(this.CalcFunc());
+
+                var (tVals, lVals) = TabulateLaguerre(FindT());
+                writer.WriteLine(string.Join(" ", tVals));
+                writer.WriteLine(string.Join(" ", lVals));
+                writer.WriteLine(FindT());
+
+                writer.WriteLine(LeftRect(1, 5));
+                writer.WriteLine(MidRect(1, 5));
+                writer.WriteLine(InverseLaguerre(h));
+            }
+
+            Console.WriteLine($"Файл записано: {filePath}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Помилка запису у файл: " + ex.Message);
+        }
+    }
+}
 
 class ProgramLaguerre
 {
     static void Main()
     {
         double[] h = { 1, 2, 3, 4, 5 };
-        var lag = new LaguerreFunc(0, 1);
+        var lag = new LaguerreFunc(1, 1);
+        lag.WriteFile(h);
+
         Console.WriteLine("Laguerre value: " + lag.CalcFunc());
         Console.WriteLine("Inverse: " + lag.InverseLaguerre(h));
 
@@ -203,7 +245,6 @@ class ProgramLaguerre
         double T = lag.FindT();
         Console.WriteLine($"T = {T}");
 
-
         var (tValues, lValues) = lag.TabulateLaguerre(T);
         Console.WriteLine("t\t| L(n, t)");
         Console.WriteLine("----------------");
@@ -212,5 +253,6 @@ class ProgramLaguerre
         {
             Console.WriteLine($"{tValues[i]:F3}\t| {lValues[i]:F6}");
         }
+
     }
 }
