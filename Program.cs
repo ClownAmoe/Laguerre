@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Globalization;
 
 public class LaguerreFunc
 {
@@ -21,10 +22,7 @@ public class LaguerreFunc
         get { return _n; }
         set
         {
-            if (value < 0)
-            {
-                throw new ArgumentException("N cannot be negative.");
-            }
+            if (value < 0) throw new ArgumentException("N cannot be negative.");
             _n = value;
         }
     }
@@ -34,10 +32,7 @@ public class LaguerreFunc
         get { return _t; }
         set
         {
-            if (value < 0)
-            {
-                throw new ArgumentException("T cannot be negative.");
-            }
+            if (value < 0) throw new ArgumentException("T cannot be negative.");
             _t = value;
         }
     }
@@ -47,10 +42,7 @@ public class LaguerreFunc
         get { return _sigma; }
         set
         {
-            if (value < 0)
-            {
-                throw new ArgumentException("Sigma cannot be negative.");
-            }
+            if (value < 0) throw new ArgumentException("Sigma cannot be negative.");
             _sigma = value;
         }
     }
@@ -60,10 +52,7 @@ public class LaguerreFunc
         get { return _beta; }
         set
         {
-            if (value < 0)
-            {
-                throw new ArgumentException("Beta cannot be negative.");
-            }
+            if (value < 0) throw new ArgumentException("Beta cannot be negative.");
             _beta = value;
         }
     }
@@ -75,13 +64,13 @@ public class LaguerreFunc
         double beta = Beta;
 
         if (_n == 0)
-            return Math.Sqrt(sigma) * Math.Exp(-beta * t / 2);
+            return Math.Sqrt(sigma) * Math.Exp(-sigma * t / 2);
 
         if (_n == 1)
-            return Math.Sqrt(sigma) * (1 - sigma * t) * Math.Exp(-beta * t / 2);
+            return Math.Sqrt(sigma) * (1 - sigma * t) * Math.Exp(-sigma * t / 2);
 
-        double L0 = Math.Sqrt(sigma) * Math.Exp(-beta * t / 2);
-        double L1 = Math.Sqrt(sigma) * (1 - sigma * t) * Math.Exp(-beta * t / 2);
+        double L0 = Math.Sqrt(sigma) * Math.Exp(-sigma * t / 2);
+        double L1 = Math.Sqrt(sigma) * (1 - sigma * t) * Math.Exp(-sigma * t / 2);
         double Ln = 0;
 
         for (int n = 2; n <= _n; n++)
@@ -147,6 +136,31 @@ public class LaguerreFunc
         return integralSum;
     }
 
+    public double[] ComputeLaguerreCoefficients(int N, double T, double alpha, double epsilon = 1e-3)
+    {
+        double[] coefficients = new double[N + 1];
+        int originalN = this.N;
+        double dt = T / (int)Math.Ceiling(T / epsilon);
+
+        for (int k = 0; k <= N; k++)
+        {
+            this.N = k;
+            double integralSum = 0;
+
+            for (int i = 0; i < (int)Math.Ceiling(T / epsilon); i++)
+            {
+                double t = i * dt;
+                double f_t = (t >= 0 && t <= 2 * Math.PI) ? (Math.Sin(t - Math.PI / 2) + 1) : 0;
+                this.T = t;
+                integralSum += f_t * CalcFunc() * Math.Exp(-alpha * t) * dt;
+            }
+            coefficients[k] = integralSum;
+        }
+
+        this.N = originalN;
+        return coefficients;
+    }
+
     public double InverseLaguerre(double[] h)
     {
         int temp = _n;
@@ -207,16 +221,32 @@ public class LaguerreFunc
             using (FileStream stream = new FileStream(filePath, FileMode.OpenOrCreate))
             using (StreamWriter writer = new StreamWriter(stream, System.Text.Encoding.UTF8))
             {
-                writer.WriteLine(this.CalcFunc());
+                writer.WriteLine("Laguerre Function Value:");
+                writer.WriteLine(this.CalcFunc().ToString(CultureInfo.InvariantCulture));
 
                 var (tVals, lVals) = TabulateLaguerre(FindT());
-                writer.WriteLine(string.Join(" ", tVals));
-                writer.WriteLine(string.Join(" ", lVals));
-                writer.WriteLine(FindT());
+                writer.WriteLine("\nTabulated t values:");
+                writer.WriteLine(string.Join(" ", Array.ConvertAll(tVals, x => x.ToString(CultureInfo.InvariantCulture))));
+                writer.WriteLine("\nTabulated L(n,t) values:");
+                writer.WriteLine(string.Join(" ", Array.ConvertAll(lVals, x => x.ToString(CultureInfo.InvariantCulture))));
+                writer.WriteLine("\nT value where |L_n(T)| < 0.001:");
+                writer.WriteLine(FindT().ToString(CultureInfo.InvariantCulture));
 
-                writer.WriteLine(LeftRect(1, 5));
-                writer.WriteLine(MidRect(1, 5));
-                writer.WriteLine(InverseLaguerre(h));
+                writer.WriteLine("\nLeft Rectangle Integral:");
+                writer.WriteLine(LeftRect(1, 5).ToString(CultureInfo.InvariantCulture));
+                writer.WriteLine("\nMid Rectangle Integral:");
+                writer.WriteLine(MidRect(1, 5).ToString(CultureInfo.InvariantCulture));
+
+                double alpha = Sigma - Beta;
+                double[] coeffs = ComputeLaguerreCoefficients(20, 2 * Math.PI, alpha);
+                writer.WriteLine("\nLaguerre Transform Coefficients (f_k):");
+                for (int k = 0; k < coeffs.Length; k++)
+                {
+                    writer.WriteLine($"f[{k}] = {coeffs[k].ToString(CultureInfo.InvariantCulture)}");
+                }
+
+                writer.WriteLine("\nInverse Laguerre Transform at t:");
+                writer.WriteLine(InverseLaguerre(coeffs).ToString(CultureInfo.InvariantCulture));
             }
 
             Console.WriteLine($"Файл записано: {filePath}");
@@ -232,12 +262,14 @@ class ProgramLaguerre
 {
     static void Main()
     {
-        double[] h = { 1, 2, 3, 4, 5 };
         var lag = new LaguerreFunc(1, 1);
+        double[] h = { 1, 2, 3, 4, 5 };
         lag.WriteFile(h);
 
         Console.WriteLine("Laguerre value: " + lag.CalcFunc());
-        Console.WriteLine("Inverse: " + lag.InverseLaguerre(h));
+        double alpha = lag.Sigma - lag.Beta;
+        double[] coeffs = lag.ComputeLaguerreCoefficients(20, 2 * Math.PI, alpha);
+        Console.WriteLine("Inverse: " + lag.InverseLaguerre(coeffs));
 
         Console.WriteLine("Left rect: " + lag.LeftRect(1, 5));
         Console.WriteLine("Mid rect: " + lag.MidRect(1, 5));
@@ -253,6 +285,5 @@ class ProgramLaguerre
         {
             Console.WriteLine($"{tValues[i]:F3}\t| {lValues[i]:F6}");
         }
-
     }
 }
